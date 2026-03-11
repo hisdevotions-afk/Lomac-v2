@@ -1,0 +1,5 @@
+{
+  "name": "Lomac Materiais de Construção",
+  "description": "App oficial da Lomac para visualização de produtos, carrinho e pedidos via WhatsApp.",
+  "requestFramePermissions": ["geolocation"]
+}

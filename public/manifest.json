@@ -1,0 +1,21 @@
+{
+  "name": "Lomac Materiais de Construção",
+  "short_name": "Lomac",
+  "description": "App oficial da Lomac para visualização de produtos, carrinho e pedidos via WhatsApp.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#ff4d00",
+  "icons": [
+    {
+      "src": "https://picsum.photos/seed/lomac-icon-192/192/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://picsum.photos/seed/lomac-icon-512/512/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

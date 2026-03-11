@@ -1,0 +1,154 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId} (Firebase Auth UID)
+    // Fields:
+    //   - name: string (required)
+    //   - email: string (required, email format)
+    //   - role: string (required, 'admin' or 'cliente')
+    //   - createdAt: timestamp (server set)
+    //
+    // Collection: products
+    // Document ID: {productId}
+    // Fields:
+    //   - name: string (required)
+    //   - price: number (required, positive)
+    //   - category: string (required)
+    //   - image: string (optional)
+    //   - description: string (optional)
+    //   - features: list (optional)
+    //   - stock: number (optional)
+    //
+    // Collection: carts
+    // Document ID: {userId}
+    // Fields:
+    //   - items: list of maps {productId, quantity}
+    //   - updatedAt: timestamp
+    //
+    // Collection: notifications
+    // Document ID: auto-generated
+    // Fields:
+    //   - title: string
+    //   - message: string
+    //   - type: string ('promo', 'cart')
+    //   - createdAt: timestamp
+    //
+    // Collection: settings
+    // Document ID: store
+    // Fields:
+    //   - name: string
+    //   - address: string
+    //   - hours: string
+    //   - phone: string
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "roberto_junior.007@hotmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && isValidEmail(data.email) &&
+             data.role in ['admin', 'cliente'];
+    }
+
+    function isValidProduct(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 200 &&
+             data.price is number && data.price >= 0 &&
+             data.category is string &&
+             (!('stock' in data) || (data.stock is number && data.stock >= 0));
+    }
+
+    function isValidCart(data) {
+      return data.items is list;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Users Collection
+    match /users/{userId} {
+      // Users can only read their own profile (PII protection)
+      // Admins can read all profiles
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // Users can create their own profile as 'cliente'
+      // Admins can create any profile
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.role == 'cliente') || isAdmin());
+      
+      // Users can update their own profile but cannot change their role
+      // Admins can update anything
+      allow update: if isAuthenticated() && isValidUser(request.resource.data) && 
+                    ((isOwner(userId) && request.resource.data.role == resource.data.role) || isAdmin());
+      
+      allow delete: if isAdmin();
+    }
+
+    // Products Collection
+    match /products/{productId} {
+      // Anyone can read products
+      allow read: if true;
+      
+      // Only admins can modify products
+      allow create, update, delete: if isAdmin() && (request.method == 'delete' || isValidProduct(request.resource.data));
+    }
+
+    // Carts Collection
+    match /carts/{userId} {
+      // Only owners can read/write their own cart
+      allow read, write: if isOwner(userId) && (request.method == 'delete' || isValidCart(request.resource.data));
+    }
+
+    // Notifications Collection
+    match /notifications/{notificationId} {
+      // Anyone can read notifications
+      allow read: if true;
+      
+      // Only admins can create/update/delete notifications
+      allow write: if isAdmin();
+    }
+
+    // Settings Collection
+    match /settings/{settingId} {
+      // Anyone can read settings
+      allow read: if true;
+      
+      // Only admins can modify settings
+      allow write: if isAdmin();
+    }
+  }
+}

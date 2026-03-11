@@ -1,0 +1,96 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name of the user" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "role": { "type": "string", "enum": ["admin", "cliente"], "description": "User role" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Account creation timestamp" }
+      },
+      "required": ["name", "email", "role"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Construction material product details",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "price": { "type": "number" },
+        "originalPrice": { "type": "number" },
+        "category": { "type": "string" },
+        "image": { "type": "string" },
+        "description": { "type": "string" },
+        "features": { "type": "array", "items": { "type": "string" } },
+        "stock": { "type": "number" }
+      },
+      "required": ["name", "price", "category"]
+    },
+    "Cart": {
+      "title": "Cart",
+      "description": "User shopping cart",
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "productId": { "type": "string" },
+              "quantity": { "type": "number" }
+            }
+          }
+        },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System or promotional notification",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "type": { "type": "string", "enum": ["promo", "cart"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "StoreInfo": {
+      "title": "StoreInfo",
+      "description": "Store location and contact information",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "address": { "type": "string" },
+        "hours": { "type": "string" },
+        "phone": { "type": "string" }
+      },
+      "required": ["name", "address", "hours", "phone"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profile storage"
+    },
+    "products/{productId}": {
+      "schema": "Product",
+      "description": "Product catalog storage"
+    },
+    "carts/{userId}": {
+      "schema": "Cart",
+      "description": "User shopping carts"
+    },
+    "notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "System notifications"
+    },
+    "settings/store": {
+      "schema": "StoreInfo",
+      "description": "Store configuration"
+    }
+  }
+}
