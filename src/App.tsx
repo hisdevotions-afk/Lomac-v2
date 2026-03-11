@@ -24,14 +24,14 @@ import {
   Users,
   BarChart3,
   Settings,
-  Eye as EyeIcon,
   Edit,
   DollarSign,
   Tag,
   TrendingDown,
   MapPin,
   Clock,
-  Navigation
+  Navigation,
+  XCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -39,7 +39,6 @@ import {
   createUserWithEmailAndPassword, 
   signOut, 
   onAuthStateChanged,
-  onIdTokenChanged,
   sendPasswordResetEmail,
   signInWithPopup,
   setPersistence,
@@ -69,59 +68,10 @@ import {
   Category, 
   Notification
 } from './constants';
-
-enum OperationType {
-  CREATE = 'create',
-  UPDATE = 'update',
-  DELETE = 'delete',
-  LIST = 'list',
-  GET = 'get',
-  WRITE = 'write',
-}
-
-interface FirestoreErrorInfo {
-  error: string;
-  operationType: OperationType;
-  path: string | null;
-  authInfo: {
-    userId: string | undefined;
-    email: string | null | undefined;
-    emailVerified: boolean | undefined;
-    isAnonymous: boolean | undefined;
-    tenantId: string | null | undefined;
-    providerInfo: {
-      providerId: string;
-      displayName: string | null;
-      email: string | null;
-      photoUrl: string | null;
-    }[];
-  }
-}
-
-const handleFirestoreError = (error: unknown, operationType: OperationType, path: string | null) => {
-  const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
-    authInfo: {
-      userId: auth.currentUser?.uid,
-      email: auth.currentUser?.email,
-      emailVerified: auth.currentUser?.emailVerified,
-      isAnonymous: auth.currentUser?.isAnonymous,
-      tenantId: auth.currentUser?.tenantId,
-      providerInfo: auth.currentUser?.providerData.map(provider => ({
-        providerId: provider.providerId,
-        displayName: provider.displayName,
-        email: provider.email,
-        photoUrl: provider.photoURL
-      })) || []
-    },
-    operationType,
-    path
-  }
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
-};
-
-type Screen = 'login' | 'register' | 'forgot-password' | 'home' | 'product' | 'cart' | 'notifications' | 'all-products' | 'favorites' | 'profile' | 'admin-panel' | 'admin-add-product' | 'admin-edit-product' | 'admin-change-price' | 'admin-promo' | 'location' | 'admin-edit-store';
+import { handleFirestoreError, OperationType, Screen } from './types';
+import { useAuth } from './hooks/useAuth';
+import { useCart } from './hooks/useCart';
+import { useFavorites } from './hooks/useFavorites';
 
 const PriceDisplay = ({ product, className = "" }: { product: Product; className?: string }) => {
   const price = typeof product.price === 'number' ? product.price : 0;
@@ -287,19 +237,29 @@ const LocationSection = ({ onBack, storeInfo }: { onBack: () => void, storeInfo:
   );
 };
 
+const LomacLogo = ({ size = 40 }: { size?: number }) => (
+  <svg viewBox="0 0 100 100" style={{ width: size, height: size }}>
+    <defs>
+      <linearGradient id="logo-grad-main" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#ff4d00" />
+        <stop offset="50%" stopColor="#ff8c00" />
+        <stop offset="100%" stopColor="#ffcc00" />
+      </linearGradient>
+    </defs>
+    <path d="M10 60 L40 30 L70 60" fill="none" stroke="url(#logo-grad-main)" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M35 60 L65 30 L95 60" fill="none" stroke="url(#logo-grad-main)" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
+
 export default function App() {
   const [currentScreen, setCurrentScreen] = useState<Screen>('login');
-  const [isAuthChecking, setIsAuthChecking] = useState(true);
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [adminSelectedProduct, setAdminSelectedProduct] = useState<Product | null>(null);
-  const [cart, setCart] = useState<{ product: Product; quantity: number }[]>([]);
-  const [isLoadingCart, setIsLoadingCart] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [savedProducts, setSavedProducts] = useState<string[]>([]);
   const [toast, setToast] = useState<string | null>(null);
   const [storeInfo, setStoreInfo] = useState({
     name: "Lomac Materiais de Construção",
@@ -313,6 +273,33 @@ export default function App() {
     message: string;
     onConfirm: () => void;
   } | null>(null);
+
+  const { savedProducts, toggleSave, fetchFavorites } = useFavorites();
+  const { cart, setCart, isLoadingCart, addToCart, removeFromCart, updateQuantity, fetchCart, cartTotal, cartCount } = useCart(products, setToast);
+  const { 
+    loginEmail, setLoginEmail,
+    loginPassword, setLoginPassword,
+    rememberMe, setRememberMe,
+    isLoggingIn,
+    regName, setRegName,
+    regEmail, setRegEmail,
+    regPassword, setRegPassword,
+    isRegistering,
+    showPassword, setShowPassword,
+    forgotEmail, setForgotEmail,
+    userProfile, setUserProfile,
+    isAuthChecking, setIsAuthChecking,
+    isOnAuthScreen,
+    handleLogin,
+    handleRegister,
+    handleLogout,
+    handleForgotPassword,
+    handleGoogleLogin,
+    handleSaveProfile
+  } = useAuth(setToast, setCurrentScreen, fetchFavorites, fetchCart);
+
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   // Toast auto-hide
   useEffect(() => {
@@ -350,297 +337,6 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [isAuthChecking]);
 
-  // Auth States
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [rememberMe, setRememberMe] = useState(true);
-  const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [regName, setRegName] = useState('');
-  const [regEmail, setRegEmail] = useState('');
-  const [regPassword, setRegPassword] = useState('');
-  const [isRegistering, setIsRegistering] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [forgotEmail, setForgotEmail] = useState('');
-  
-  const [userProfile, setUserProfile] = useState({
-    name: 'Roberto Junior',
-    phone: '(11) 99999-9999',
-    email: 'roberto_junior.007@hotmail.com',
-    street: 'Av. Paulista',
-    number: '1000',
-    complement: 'Apto 101',
-    zipCode: '01310-100',
-    role: 'cliente'
-  });
-
-  // Auth Handlers
-  const handleGoogleLogin = async () => {
-    setIsLoggingIn(true);
-    try {
-      await signInWithPopup(auth, googleProvider);
-      setToast('Bem-vindo!');
-    } catch (error: any) {
-      console.error("Google login error:", error);
-      setToast('Erro ao entrar com Google.');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const handleLogin = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!loginEmail || !loginPassword) {
-      setToast('Por favor, preencha todos os campos.');
-      return;
-    }
-    setIsLoggingIn(true);
-    try {
-      await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
-      await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
-      setToast('Bem-vindo de volta!');
-    } catch (error: any) {
-      console.error("Login error:", error.code, error.message);
-      let message = 'Erro ao entrar. Tente novamente.';
-      
-      // Firebase Auth Error Codes
-      if (
-        error.code === 'auth/user-not-found' || 
-        error.code === 'auth/wrong-password' || 
-        error.code === 'auth/invalid-credential' ||
-        error.code === 'auth/invalid-email'
-      ) {
-        message = 'E-mail e senha não conferem.';
-      } else if (error.code === 'auth/too-many-requests') {
-        message = 'Muitas tentativas sem sucesso. Tente novamente mais tarde.';
-      } else if (error.code === 'auth/user-disabled') {
-        message = 'Esta conta foi desativada.';
-      }
-      
-      setToast(message);
-      setLoginPassword('');
-    } finally {
-      setIsLoggingIn(false);
-    }
-  };
-
-  const handleRegister = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!regEmail || !regPassword || !regName) {
-      setToast('Por favor, preencha todos os campos.');
-      return;
-    }
-    
-    setIsRegistering(true);
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, regEmail, regPassword);
-      const user = userCredential.user;
-      
-      const userPath = `users/${user.uid}`;
-      try {
-        // Save to Firestore
-        await setDoc(doc(db, "users", user.uid), {
-          name: regName,
-          email: regEmail,
-          role: "cliente",
-          createdAt: serverTimestamp()
-        });
-      } catch (error) {
-        handleFirestoreError(error, OperationType.WRITE, userPath);
-      }
-
-      setUserProfile(prev => ({ 
-        ...prev, 
-        name: regName, 
-        email: regEmail, 
-        role: 'cliente' 
-      }));
-      
-      setToast('Conta criada com sucesso!');
-      
-      // Clear registration fields
-      setRegName('');
-      setRegEmail('');
-      setRegPassword('');
-      
-      // Navigation is handled by onAuthStateChanged
-    } catch (error: any) {
-      console.error("Registration error:", error.code, error.message);
-      let message = 'Erro ao cadastrar. Tente novamente.';
-      
-      if (error.code === 'auth/email-already-in-use') {
-        message = 'Este e-mail já está em uso.';
-      } else if (error.code === 'auth/weak-password') {
-        message = 'A senha deve ter pelo menos 6 caracteres.';
-      } else if (error.code === 'auth/invalid-email') {
-        message = 'E-mail inválido.';
-      }
-      
-      setToast(message);
-      setRegPassword('');
-    } finally {
-      setIsRegistering(false);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      // Clear local data
-      localStorage.clear();
-      sessionStorage.clear();
-      
-      setCurrentScreen('login');
-      setLoginEmail('');
-      setLoginPassword('');
-      setUserProfile(prev => ({ ...prev, role: 'cliente' }));
-      setToast('Até logo!');
-    } catch (error: any) {
-      console.error("Logout error:", error);
-      setToast('Erro ao sair.');
-    }
-  };
-
-  const handleForgotPassword = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!forgotEmail) {
-      setToast('Por favor, insira seu e-mail.');
-      return;
-    }
-    try {
-      await sendPasswordResetEmail(auth, forgotEmail);
-      setToast('E-mail de recuperação enviado!');
-      setCurrentScreen('login');
-    } catch (error: any) {
-      setToast('Erro ao enviar e-mail.');
-    }
-  };
-
-  useEffect(() => {
-    const unsubscribe = onIdTokenChanged(auth, async (user) => {
-      if (user) {
-        try {
-          // Check if token is still valid
-          const tokenResult = await user.getIdTokenResult();
-          const expirationTime = new Date(tokenResult.expirationTime).getTime();
-          const now = new Date().getTime();
-          
-          if (expirationTime <= now) {
-            console.warn("Session expired, logging out...");
-            handleLogout();
-            return;
-          }
-
-          // Pre-fill with auth data immediately
-          setUserProfile(prev => ({
-            ...prev,
-            email: user.email || prev.email
-          }));
-
-          // Set screen to home immediately to get out of loading screen
-          if (currentScreen === 'login' || currentScreen === 'register') {
-            setCurrentScreen('home');
-          }
-          setIsAuthChecking(false);
-
-          // Fetch user data from Firestore in the background
-          const userPath = `users/${user.uid}`;
-          try {
-            const userDoc = await getDoc(doc(db, "users", user.uid));
-            if (userDoc.exists()) {
-              const userData = userDoc.data();
-              setUserProfile(prev => ({
-                ...prev,
-                name: userData.name || prev.name,
-                email: userData.email || prev.email,
-                role: userData.role || 'cliente'
-              }));
-
-              if (userData.role === 'admin' && currentScreen === 'login') {
-                setCurrentScreen('admin-panel');
-              }
-            } else {
-              // Automatically create document if it doesn't exist (e.g. first login/registration)
-              // This fulfills the requirement: "After a user registers... automatically create a document"
-              await setDoc(doc(db, "users", user.uid), {
-                name: user.displayName || regName || 'Usuário',
-                email: user.email,
-                role: "cliente",
-                createdAt: serverTimestamp()
-              });
-              setUserProfile(prev => ({
-                ...prev,
-                name: user.displayName || regName || 'Usuário',
-                email: user.email || prev.email,
-                role: 'cliente'
-              }));
-            }
-          } catch (error) {
-            handleFirestoreError(error, OperationType.GET, userPath);
-          }
-        } catch (error: any) {
-          console.error("Auth check error:", error);
-          if (error.code === 'auth/user-token-expired' || error.code === 'permission-denied') {
-            handleLogout();
-          } else {
-            setIsAuthChecking(false);
-          }
-        }
-      } else {
-        // Only redirect to login if we're not on a screen that allows unauthenticated users
-        if (currentScreen !== 'register' && currentScreen !== 'forgot-password') {
-          setCurrentScreen('login');
-        }
-        setIsAuthChecking(false);
-      }
-    });
-    return () => unsubscribe();
-  }, [currentScreen]);
-
-  const fetchCart = async () => {
-    if (!auth.currentUser) return;
-    setIsLoadingCart(true);
-    const cartPath = `carts/${auth.currentUser.uid}`;
-    try {
-      const cartDoc = await getDoc(doc(db, "carts", auth.currentUser.uid));
-      if (cartDoc.exists()) {
-        const cartData = cartDoc.data().items || [];
-        // Map stored IDs back to product objects
-        const hydratedCart = cartData.map((item: any) => {
-          const product = products.find(p => p.id === item.productId);
-          return product ? { product, quantity: item.quantity } : null;
-        }).filter(Boolean);
-        setCart(hydratedCart);
-      }
-    } catch (error) {
-      console.error("Error fetching cart:", error);
-      setCart([]);
-    } finally {
-      setIsLoadingCart(false);
-    }
-  };
-
-  const saveCart = async (newCart: { product: Product; quantity: number }[]) => {
-    if (!auth.currentUser) return;
-    const cartPath = `carts/${auth.currentUser.uid}`;
-    try {
-      await setDoc(doc(db, "carts", auth.currentUser.uid), {
-        items: newCart.map(item => ({
-          productId: item.product.id,
-          quantity: item.quantity
-        })),
-        updatedAt: serverTimestamp()
-      });
-    } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, cartPath);
-    }
-  };
-
-  useEffect(() => {
-    if (currentScreen === 'cart') {
-      fetchCart();
-    }
-  }, [currentScreen]);
-
   const fetchNotifications = async () => {
     if (!auth.currentUser) return;
     
@@ -675,6 +371,7 @@ export default function App() {
   };
 
   const handleOpenNotifications = () => {
+    setHasUnreadNotifications(false);
     setCurrentScreen('notifications');
     fetchNotifications();
   };
@@ -948,80 +645,10 @@ export default function App() {
     }
   };
 
-  // Cart Logic
-  const addToCart = (product: Product) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.product.id === product.id);
-      let newCart;
-      if (existing) {
-        newCart = prev.map(item => 
-          item.product.id === product.id 
-            ? { ...item, quantity: item.quantity + 1 } 
-            : item
-        );
-      } else {
-        newCart = [...prev, { product, quantity: 1 }];
-      }
-      saveCart(newCart);
-      return newCart;
-    });
-    setToast(`${product.name} adicionado ao carrinho!`);
-    setTimeout(() => setToast(null), 3000);
-  };
-
-  const removeFromCart = (productId: string) => {
-    setCart(prev => {
-      const newCart = prev.filter(item => item.product.id !== productId);
-      saveCart(newCart);
-      return newCart;
-    });
-  };
-
-  const updateQuantity = (productId: string, delta: number) => {
-    setCart(prev => {
-      const newCart = prev.map(item => {
-        if (item.product.id === productId) {
-          const newQty = Math.max(1, item.quantity + delta);
-          return { ...item, quantity: newQty };
-        }
-        return item;
-      });
-      saveCart(newCart);
-      return newCart;
-    });
-  };
-
-  const cartTotal = useMemo(() => {
-    return cart.reduce((acc, item) => acc + item.product.price * item.quantity, 0);
-  }, [cart]);
-
-  const cartCount = useMemo(() => {
-    return cart.reduce((acc, item) => acc + item.quantity, 0);
-  }, [cart]);
-
-  if (isAuthChecking) {
-    return (
-      <div className="min-h-screen bg-[#0a0a0a] flex items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 border-4 border-orange-500/30 border-t-orange-500 rounded-full animate-spin" />
-          <p className="text-slate-400 font-medium animate-pulse">Carregando...</p>
-        </div>
-      </div>
-    );
-  }
-
   // Navigation Logic
   const navigateToProduct = (product: Product) => {
     setSelectedProduct(product);
     setCurrentScreen('product');
-  };
-
-  const toggleSave = (productId: string) => {
-    setSavedProducts(prev => 
-      prev.includes(productId) 
-        ? prev.filter(id => id !== productId) 
-        : [...prev, productId]
-    );
   };
 
   const handleWhatsAppOrder = () => {
@@ -1051,17 +678,30 @@ export default function App() {
   };
 
   // Filtered Products
-  const filteredProducts = products.filter(p => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    const productName = (p.name || '').toLowerCase();
-    const productCategory = (p.category || '').toLowerCase();
-    const categoryName = CATEGORIES.find(c => c.id === p.category || c.name.toLowerCase() === productCategory)?.name.toLowerCase() || '';
-    
-    return productName.includes(query) ||
-           productCategory.includes(query) ||
-           categoryName.includes(query);
-  });
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      // Text search filter
+      let matchesSearch = true;
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const productName = (p.name || '').toLowerCase();
+        const productCategory = (p.category || '').toLowerCase();
+        const categoryName = CATEGORIES.find(c => c.id === p.category || c.name.toLowerCase() === productCategory)?.name.toLowerCase() || '';
+        
+        matchesSearch = productName.includes(query) ||
+               productCategory.includes(query) ||
+               categoryName.includes(query);
+      }
+
+      // Category ID filter
+      let matchesCategory = true;
+      if (selectedCategory) {
+        matchesCategory = p.category === selectedCategory;
+      }
+      
+      return matchesSearch && matchesCategory;
+    });
+  }, [products, searchQuery, selectedCategory]);
 
   return (
     <div className="max-w-md mx-auto bg-dark-bg min-h-screen pb-20 relative overflow-hidden flex flex-col text-slate-100">
@@ -1074,31 +714,7 @@ export default function App() {
           onClick={scrollToTop}
         >
           <div className="relative w-10 h-10 flex items-center justify-center">
-            <svg viewBox="0 0 100 100" className="w-full h-full">
-              <defs>
-                <linearGradient id="logo-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#ff4d00" />
-                  <stop offset="50%" stopColor="#ff8c00" />
-                  <stop offset="100%" stopColor="#ffcc00" />
-                </linearGradient>
-              </defs>
-              <path 
-                d="M10 60 L40 30 L70 60" 
-                fill="none" 
-                stroke="url(#logo-grad)" 
-                strokeWidth="12" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              />
-              <path 
-                d="M35 60 L65 30 L95 60" 
-                fill="none" 
-                stroke="url(#logo-grad)" 
-                strokeWidth="12" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              />
-            </svg>
+            <LomacLogo size={40} />
           </div>
           <h1 className="font-bold text-xl tracking-tight text-white">LOMAC</h1>
         </div>
@@ -1116,7 +732,7 @@ export default function App() {
             className="relative p-2 text-slate-400 hover:text-primary transition-colors"
           >
             <Bell size={24} />
-            <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-dark-surface"></span>
+            {hasUnreadNotifications && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-dark-surface"></span>}
           </button>
           <button 
             onClick={() => setCurrentScreen('cart')}
@@ -1146,17 +762,7 @@ export default function App() {
             >
               <div className="flex flex-col items-center mb-10">
                 <div className="relative w-20 h-20 flex items-center justify-center mb-4">
-                  <svg viewBox="0 0 100 100" className="w-full h-full">
-                    <defs>
-                      <linearGradient id="logo-grad-login" x1="0%" y1="0%" x2="100%" y2="100%">
-                        <stop offset="0%" stopColor="#ff4d00" />
-                        <stop offset="50%" stopColor="#ff8c00" />
-                        <stop offset="100%" stopColor="#ffcc00" />
-                      </linearGradient>
-                    </defs>
-                    <path d="M10 60 L40 30 L70 60" fill="none" stroke="url(#logo-grad-login)" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M35 60 L65 30 L95 60" fill="none" stroke="url(#logo-grad-login)" strokeWidth="12" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
+                  <LomacLogo size={80} />
                 </div>
                 <h1 className="text-3xl font-bold tracking-tight text-white">LOMAC</h1>
                 <p className="text-slate-400 text-sm mt-2">Construindo o futuro com você</p>
@@ -1485,7 +1091,7 @@ export default function App() {
                     onClick={() => setCurrentScreen('home')}
                     className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-2 rounded-xl text-xs font-bold hover:bg-primary hover:text-white transition-all"
                   >
-                    <EyeIcon size={16} />
+                    <Eye size={16} />
                     Ver Loja
                   </button>
                   <button 
@@ -2053,7 +1659,10 @@ export default function App() {
                   Ajudando a construir o futuro
                 </h2>
                 <p className="text-slate-400 text-sm">Materiais de construção com o melhor preço da região.</p>
-                <button className="mt-4 orange-gradient text-white font-bold px-4 py-2 rounded-lg text-sm w-fit hover:opacity-90 transition-all shadow-lg shadow-orange-900/20">
+                <button 
+                  onClick={() => setCurrentScreen('all-products')}
+                  className="mt-4 orange-gradient text-white font-bold px-4 py-2 rounded-lg text-sm w-fit hover:opacity-90 transition-all shadow-lg shadow-orange-900/20"
+                >
                   Ver Ofertas
                 </button>
               </div>
@@ -2089,12 +1698,18 @@ export default function App() {
                     <button 
                       key={cat.id}
                       className="flex flex-col items-center gap-2 min-w-[80px]"
-                      onClick={() => setSearchQuery(cat.name)}
+                      onClick={() => setSelectedCategory(prev => prev === cat.id ? null : cat.id)}
                     >
-                      <div className="w-16 h-16 bg-dark-surface rounded-2xl flex items-center justify-center shadow-sm border border-dark-border text-primary hover:bg-primary hover:text-white transition-all">
+                      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-sm border transition-all ${
+                        selectedCategory === cat.id 
+                          ? 'bg-primary text-white border-primary' 
+                          : 'bg-dark-surface text-primary border-dark-border hover:bg-primary/10'
+                      }`}>
                         <cat.icon size={28} />
                       </div>
-                      <span className="text-xs font-medium text-slate-400">{cat.name}</span>
+                      <span className={`text-xs font-medium transition-colors ${selectedCategory === cat.id ? 'text-primary font-bold' : 'text-slate-400'}`}>
+                        {cat.name}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -2110,7 +1725,17 @@ export default function App() {
               {/* Featured Products */}
               <div>
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold text-lg text-white">Produtos em Destaque</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-lg text-white">Produtos em Destaque</h3>
+                    {selectedCategory && (
+                      <button 
+                        onClick={() => setSelectedCategory(null)}
+                        className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full border border-primary/20 font-bold uppercase tracking-tighter"
+                      >
+                        Limpar filtro
+                      </button>
+                    )}
+                  </div>
                   <button 
                     onClick={() => setCurrentScreen('all-products')}
                     className="text-primary text-sm font-semibold"
@@ -2147,9 +1772,14 @@ export default function App() {
                           <PriceDisplay product={product} />
                           <button 
                             onClick={() => addToCart(product)}
-                            className="w-full mt-2 orange-gradient text-white py-2 rounded-lg text-xs font-bold shadow-md shadow-orange-900/20 active:scale-95 transition-all"
+                            disabled={product.stock === 0}
+                            className={`w-full mt-2 py-2 rounded-lg text-xs font-bold shadow-md transition-all ${
+                              product.stock === 0 
+                                ? 'bg-slate-700 text-slate-400 cursor-not-allowed' 
+                                : 'orange-gradient text-white shadow-orange-900/20 active:scale-95'
+                            }`}
                           >
-                            Adicionar
+                            {product.stock === 0 ? 'Sem estoque' : 'Adicionar'}
                           </button>
                         </div>
                       </div>
@@ -2215,19 +1845,31 @@ export default function App() {
 
                 <div className="flex items-center justify-between">
                   <PriceDisplay product={selectedProduct} className="!flex-row items-baseline gap-2" />
-                  <div className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full text-sm font-bold">
-                    <CheckCircle2 size={16} />
-                    Em estoque
-                  </div>
+                  {selectedProduct.stock === 0 ? (
+                    <div className="flex items-center gap-1 text-orange-400 bg-orange-500/10 px-3 py-1 rounded-full text-sm font-bold">
+                      <XCircle size={16} />
+                      Fora de estoque
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1 text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full text-sm font-bold">
+                      <CheckCircle2 size={16} />
+                      Em estoque
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-4">
                   <button 
                     onClick={() => addToCart(selectedProduct)}
-                    className="w-full orange-gradient text-white py-4 rounded-2xl font-bold text-lg shadow-xl shadow-orange-900/20 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                    disabled={selectedProduct.stock === 0}
+                    className={`w-full py-4 rounded-2xl font-bold text-lg shadow-xl flex items-center justify-center gap-2 transition-all ${
+                      selectedProduct.stock === 0
+                        ? 'bg-slate-700 text-slate-400 cursor-not-allowed'
+                        : 'orange-gradient text-white shadow-orange-900/20 active:scale-[0.98]'
+                    }`}
                   >
                     <ShoppingCart size={20} />
-                    Adicionar ao Carrinho
+                    {selectedProduct.stock === 0 ? 'Sem estoque' : 'Adicionar ao Carrinho'}
                   </button>
                   <button 
                     onClick={() => toggleSave(selectedProduct.id)}
@@ -2451,9 +2093,14 @@ export default function App() {
                       <PriceDisplay product={product} />
                       <button 
                         onClick={() => addToCart(product)}
-                        className="w-full mt-2 orange-gradient text-white py-2 rounded-lg text-xs font-bold shadow-md shadow-orange-900/20 active:scale-95 transition-all"
+                        disabled={product.stock === 0}
+                        className={`w-full mt-2 py-2 rounded-lg text-xs font-bold shadow-md transition-all ${
+                          product.stock === 0 
+                            ? 'bg-slate-700 text-slate-400 cursor-not-allowed' 
+                            : 'orange-gradient text-white shadow-orange-900/20 active:scale-95'
+                        }`}
                       >
-                        Adicionar
+                        {product.stock === 0 ? 'Sem estoque' : 'Adicionar'}
                       </button>
                     </div>
                   </div>
@@ -2520,9 +2167,14 @@ export default function App() {
                         <PriceDisplay product={product} />
                         <button 
                           onClick={() => addToCart(product)}
-                          className="w-full mt-2 orange-gradient text-white py-2 rounded-lg text-xs font-bold shadow-md shadow-orange-900/20 active:scale-95 transition-all"
+                          disabled={product.stock === 0}
+                          className={`w-full mt-2 py-2 rounded-lg text-xs font-bold shadow-md transition-all ${
+                            product.stock === 0 
+                              ? 'bg-slate-700 text-slate-400 cursor-not-allowed' 
+                              : 'orange-gradient text-white shadow-orange-900/20 active:scale-95'
+                          }`}
                         >
-                          Adicionar
+                          {product.stock === 0 ? 'Sem estoque' : 'Adicionar'}
                         </button>
                       </div>
                     </div>
@@ -2627,10 +2279,7 @@ export default function App() {
                   </div>
 
                   <button 
-                    onClick={() => {
-                      setToast('Perfil atualizado com sucesso!');
-                      setCurrentScreen('home');
-                    }}
+                    onClick={handleSaveProfile}
                     className="w-full orange-gradient text-white py-4 rounded-2xl font-bold shadow-lg shadow-orange-900/20 active:scale-95 transition-all"
                   >
                     Salvar Alterações
@@ -2667,6 +2316,17 @@ export default function App() {
               </div>
             </motion.div>
           )}
+
+          {currentScreen === 'location' && (
+            <motion.div 
+              key="location"
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+            >
+              <LocationSection onBack={() => setCurrentScreen('home')} storeInfo={storeInfo} />
+            </motion.div>
+          )}
         </AnimatePresence>
 
         {/* Toast Notification */}
@@ -2683,9 +2343,6 @@ export default function App() {
                 {toast}
               </div>
             </motion.div>
-          )}
-          {currentScreen === 'location' && (
-            <LocationSection onBack={() => setCurrentScreen('home')} storeInfo={storeInfo} />
           )}
         </AnimatePresence>
       </main>
