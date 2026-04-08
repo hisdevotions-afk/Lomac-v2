@@ -252,7 +252,7 @@ const LomacLogo = ({ size = 40 }: { size?: number }) => (
 );
 
 export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<Screen>('login');
+  const [currentScreen, setCurrentScreen] = useState<Screen>('home');
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -300,6 +300,15 @@ export default function App() {
 
   const [hasUnreadNotifications, setHasUnreadNotifications] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
+
+  const checkAuthAndProceed = (action: () => void) => {
+    if (auth.currentUser) {
+      action();
+    } else {
+      setShowAuthModal(true);
+    }
+  };
 
   // Toast auto-hide
   useEffect(() => {
@@ -719,32 +728,43 @@ export default function App() {
           <h1 className="font-bold text-xl tracking-tight text-white">LOMAC</h1>
         </div>
         <div className="flex items-center gap-4">
-          <button 
-            onClick={() => setCurrentScreen('profile')}
-            className={`p-2 transition-colors ${currentScreen === 'profile' ? 'text-primary' : 'text-slate-400 hover:text-primary'}`}
-          >
-            <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
-              <span className="text-xs font-bold text-primary">{userProfile.name.charAt(0)}</span>
-            </div>
-          </button>
-          <button 
-            onClick={handleOpenNotifications}
-            className="relative p-2 text-slate-400 hover:text-primary transition-colors"
-          >
-            <Bell size={24} />
-            {hasUnreadNotifications && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-dark-surface"></span>}
-          </button>
-          <button 
-            onClick={() => setCurrentScreen('cart')}
-            className="relative p-2 text-slate-400 hover:text-primary transition-colors"
-          >
-            <ShoppingCart size={24} />
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-dark-surface">
-                {cartCount}
-              </span>
-            )}
-          </button>
+          {auth.currentUser ? (
+            <>
+              <button 
+                onClick={() => setCurrentScreen('profile')}
+                className={`p-2 transition-colors ${currentScreen === 'profile' ? 'text-primary' : 'text-slate-400 hover:text-primary'}`}
+              >
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center border border-primary/20">
+                  <span className="text-xs font-bold text-primary">{userProfile.name.charAt(0) || '?'}</span>
+                </div>
+              </button>
+              <button 
+                onClick={handleOpenNotifications}
+                className="relative p-2 text-slate-400 hover:text-primary transition-colors"
+              >
+                <Bell size={24} />
+                {hasUnreadNotifications && <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-dark-surface"></span>}
+              </button>
+              <button 
+                onClick={() => checkAuthAndProceed(() => setCurrentScreen('cart'))}
+                className="relative p-2 text-slate-400 hover:text-primary transition-colors"
+              >
+                <ShoppingCart size={24} />
+                {cartCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-primary text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center border-2 border-dark-surface">
+                    {cartCount}
+                  </span>
+                )}
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => setCurrentScreen('login')}
+              className="orange-gradient text-white px-4 py-2 rounded-xl text-sm font-bold active:scale-95 transition-all shadow-lg shadow-orange-900/20"
+            >
+              Entrar
+            </button>
+          )}
         </div>
       </header>
       )}
@@ -1761,7 +1781,7 @@ export default function App() {
                             referrerPolicy="no-referrer"
                           />
                           <button 
-                            onClick={(e) => { e.stopPropagation(); toggleSave(product.id); }}
+                            onClick={(e) => { e.stopPropagation(); checkAuthAndProceed(() => toggleSave(product.id)); }}
                             className={`absolute top-2 right-2 p-1.5 rounded-full shadow-sm transition-colors ${savedProducts.includes(product.id) ? 'bg-red-500/20 text-red-500' : 'bg-black/40 text-slate-400'}`}
                           >
                             <Heart size={16} fill={savedProducts.includes(product.id) ? "currentColor" : "none"} />
@@ -1771,7 +1791,7 @@ export default function App() {
                         <div className="mt-auto">
                           <PriceDisplay product={product} />
                           <button 
-                            onClick={() => addToCart(product)}
+                            onClick={() => checkAuthAndProceed(() => addToCart(product))}
                             disabled={product.stock === 0}
                             className={`w-full mt-2 py-2 rounded-lg text-xs font-bold shadow-md transition-all ${
                               product.stock === 0 
@@ -1836,7 +1856,7 @@ export default function App() {
                     <h2 className="text-2xl font-bold text-white mt-1">{selectedProduct.name}</h2>
                   </div>
                   <button 
-                    onClick={() => toggleSave(selectedProduct.id)}
+                    onClick={() => checkAuthAndProceed(() => toggleSave(selectedProduct.id))}
                     className={`p-3 rounded-2xl shadow-sm transition-colors ${savedProducts.includes(selectedProduct.id) ? 'bg-red-500/20 text-red-500' : 'bg-dark-surface text-slate-400'}`}
                   >
                     <Heart size={24} fill={savedProducts.includes(selectedProduct.id) ? "currentColor" : "none"} />
@@ -1860,7 +1880,7 @@ export default function App() {
 
                 <div className="space-y-4">
                   <button 
-                    onClick={() => addToCart(selectedProduct)}
+                    onClick={() => checkAuthAndProceed(() => addToCart(selectedProduct))}
                     disabled={selectedProduct.stock === 0}
                     className={`w-full py-4 rounded-2xl font-bold text-lg shadow-xl flex items-center justify-center gap-2 transition-all ${
                       selectedProduct.stock === 0
@@ -1872,7 +1892,7 @@ export default function App() {
                     {selectedProduct.stock === 0 ? 'Sem estoque' : 'Adicionar ao Carrinho'}
                   </button>
                   <button 
-                    onClick={() => toggleSave(selectedProduct.id)}
+                    onClick={() => checkAuthAndProceed(() => toggleSave(selectedProduct.id))}
                     className="w-full bg-dark-surface text-slate-300 py-4 rounded-2xl font-bold text-sm border border-dark-border hover:bg-slate-800 transition-all"
                   >
                     Salvar para acompanhar preço
@@ -2092,7 +2112,7 @@ export default function App() {
                     <div className="mt-auto">
                       <PriceDisplay product={product} />
                       <button 
-                        onClick={() => addToCart(product)}
+                        onClick={() => checkAuthAndProceed(() => addToCart(product))}
                         disabled={product.stock === 0}
                         className={`w-full mt-2 py-2 rounded-lg text-xs font-bold shadow-md transition-all ${
                           product.stock === 0 
@@ -2365,7 +2385,7 @@ export default function App() {
           <span className="text-[10px] font-bold uppercase tracking-wider">Categorias</span>
         </button>
         <button 
-          onClick={() => setCurrentScreen('cart')}
+          onClick={() => checkAuthAndProceed(() => setCurrentScreen('cart'))}
           className={`flex flex-col items-center gap-1 transition-all hover:text-primary hover:scale-110 ${currentScreen === 'cart' ? 'text-primary scale-110' : 'text-slate-500'}`}
         >
           <div className="relative">
@@ -2386,7 +2406,7 @@ export default function App() {
           <span className="text-[10px] font-bold uppercase tracking-wider">Loja</span>
         </button>
         <button 
-          onClick={() => setCurrentScreen('favorites')}
+          onClick={() => checkAuthAndProceed(() => setCurrentScreen('favorites'))}
           className={`flex flex-col items-center gap-1 transition-all hover:text-primary hover:scale-110 ${currentScreen === 'favorites' ? 'text-primary scale-110' : 'text-slate-500'}`}
         >
           <div className="relative">
@@ -2426,6 +2446,48 @@ export default function App() {
                   className="flex-1 py-3 px-4 orange-gradient text-white font-bold rounded-xl shadow-lg shadow-orange-900/20 active:scale-95 transition-all"
                 >
                   Confirmar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Auth Modal - shown when unauthenticated user tries to add to cart/favorites */}
+      <AnimatePresence>
+        {showAuthModal && (
+          <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="bg-dark-surface border border-dark-border p-6 rounded-3xl max-w-sm w-full shadow-2xl space-y-4"
+            >
+              <div className="w-14 h-14 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto">
+                <ShoppingCart className="text-primary" size={28} />
+              </div>
+              <h3 className="text-xl font-bold text-white text-center">Crie sua conta grátis</h3>
+              <p className="text-slate-400 text-sm text-center">
+                Para adicionar produtos ao carrinho e fazer pedidos, crie sua conta. É rápido e gratuito!
+              </p>
+              <div className="flex flex-col gap-3 pt-2">
+                <button
+                  onClick={() => { setShowAuthModal(false); setCurrentScreen('register'); }}
+                  className="w-full py-3 px-4 orange-gradient text-white font-bold rounded-xl shadow-lg shadow-orange-900/20 active:scale-95 transition-all"
+                >
+                  Criar conta grátis
+                </button>
+                <button
+                  onClick={() => { setShowAuthModal(false); setCurrentScreen('login'); }}
+                  className="w-full py-3 px-4 bg-dark-bg border border-dark-border text-slate-400 font-bold rounded-xl hover:bg-slate-800 transition-all"
+                >
+                  Já tenho conta
+                </button>
+                <button
+                  onClick={() => setShowAuthModal(false)}
+                  className="text-slate-600 text-sm text-center hover:text-slate-400 transition-colors py-1"
+                >
+                  Continuar navegando
                 </button>
               </div>
             </motion.div>
