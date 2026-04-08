@@ -430,7 +430,8 @@ export default function App() {
     const productsPath = "products";
     try {
       const productsRef = collection(db, "products");
-      const q = query(productsRef, orderBy("name"));
+      // No orderBy to avoid requiring a Firestore index — sort client-side instead
+      const q = query(productsRef, limit(500));
       const querySnapshot = await getDocs(q);
       
       if (querySnapshot.empty) {
@@ -450,6 +451,8 @@ export default function App() {
             features: Array.isArray(data.features) ? data.features : []
           } as Product);
         });
+        // Sort by name client-side
+        productsData.sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
         setProducts(productsData);
       }
     } catch (error) {
