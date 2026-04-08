@@ -51,6 +51,7 @@ export const useAuth = (
 
   const handleGoogleLogin = async () => {
     setIsLoggingIn(true);
+    isOnAuthScreen.current = true; // signal to navigate to home after login
     try {
       await signInWithPopup(auth, googleProvider);
       setToast('Bem-vindo!');
@@ -75,6 +76,7 @@ export const useAuth = (
       return;
     }
     setIsLoggingIn(true);
+    isOnAuthScreen.current = true; // signal to navigate to home after login
     try {
       await setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
       await signInWithEmailAndPassword(auth, loginEmail, loginPassword);
@@ -111,6 +113,7 @@ export const useAuth = (
     }
     
     setIsRegistering(true);
+    isOnAuthScreen.current = true; // signal to navigate to home after register
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, regEmail, regPassword);
       const user = userCredential.user;
@@ -219,6 +222,7 @@ export const useAuth = (
         try {
           setUserProfile(prev => ({
             ...prev,
+            name: user.displayName || prev.name,
             email: user.email || prev.email
           }));
 
