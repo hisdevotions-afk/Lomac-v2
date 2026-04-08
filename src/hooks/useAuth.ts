@@ -36,7 +36,7 @@ export const useAuth = (
   const [showPassword, setShowPassword] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [isAuthChecking, setIsAuthChecking] = useState(true);
-  const isOnAuthScreen = useRef(true);
+  const isOnAuthScreen = useRef(false);
 
   const [userProfile, setUserProfile] = useState({
     name: '',
@@ -273,10 +273,7 @@ export const useAuth = (
           setIsAuthChecking(false);
         }
       } else {
-        if (!isOnAuthScreen.current) {
-          setCurrentScreen('login');
-          isOnAuthScreen.current = true;
-        }
+        // User not logged in — stay on current screen (public access allowed)
         setIsAuthChecking(false);
       }
     });
