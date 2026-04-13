@@ -259,6 +259,7 @@ export default function App() {
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [adminSelectedProduct, setAdminSelectedProduct] = useState<Product | null>(null);
+  const [adminProductSearch, setAdminProductSearch] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [toast, setToast] = useState<string | null>(null);
   const [storeInfo, setStoreInfo] = useState({
@@ -396,34 +397,6 @@ export default function App() {
     features: []
   });
 
-  const [isSyncing, setIsSyncing] = useState(false);
-
-  const handleSyncDatabase = async () => {
-    setConfirmDialog({
-      title: 'Sincronizar Catálogo',
-      message: 'Isso irá adicionar todos os produtos padrão ao banco de dados. Continuar?',
-      onConfirm: async () => {
-        setConfirmDialog(null);
-        setIsSyncing(true);
-        try {
-          const productsRef = collection(db, "products");
-          for (const product of PRODUCTS) {
-            await setDoc(doc(productsRef, product.id), {
-              ...product,
-              updatedAt: serverTimestamp()
-            });
-          }
-          setToast('Catálogo sincronizado com sucesso!');
-          fetchProducts();
-        } catch (error) {
-          console.error("Error syncing database:", error);
-          setToast('Erro ao sincronizar catálogo.');
-        } finally {
-          setIsSyncing(false);
-        }
-      }
-    });
-  };
 
   const fetchProducts = async () => {
     setIsLoadingProducts(true);
@@ -1198,24 +1171,6 @@ export default function App() {
                       <ArrowRight size={20} className="text-slate-600" />
                     </button>
 
-                    {/* Sincronizar Banco */}
-                    <button 
-                      onClick={handleSyncDatabase}
-                      disabled={isSyncing}
-                      className="flex items-center justify-between p-5 bg-dark-surface rounded-2xl border border-dark-border hover:border-primary/50 transition-all group disabled:opacity-50"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-500 group-hover:bg-indigo-500 group-hover:text-white transition-all">
-                          <Package size={24} />
-                        </div>
-                        <div className="text-left">
-                          <p className="text-base font-bold text-white">{isSyncing ? 'Sincronizando...' : 'Sincronizar Catálogo'}</p>
-                          <p className="text-xs text-slate-500">Adicionar produtos padrão ao banco</p>
-                        </div>
-                      </div>
-                      <ArrowRight size={20} className="text-slate-600" />
-                    </button>
-
                     {/* Editar Endereço */}
                     <button 
                       onClick={() => setCurrentScreen('admin-edit-store')}
@@ -1346,7 +1301,7 @@ export default function App() {
               <div className="flex items-center gap-4">
                 <button 
                   onClick={() => {
-                    if (adminSelectedProduct) setAdminSelectedProduct(null);
+                    if (adminSelectedProduct) { setAdminSelectedProduct(null); setAdminProductSearch(''); }
                     else setCurrentScreen('admin-panel');
                   }} 
                   className="p-2 text-slate-400"
@@ -1360,10 +1315,23 @@ export default function App() {
 
               {!adminSelectedProduct ? (
                 <div className="space-y-3">
-                  {products.map(product => (
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Buscar produto pelo nome..."
+                      value={adminProductSearch}
+                      onChange={(e) => setAdminProductSearch(e.target.value)}
+                      className="w-full bg-dark-surface border border-dark-border rounded-xl py-3 pl-12 pr-4 text-white focus:ring-2 focus:ring-primary outline-none transition-all"
+                      autoFocus
+                    />
+                  </div>
+                  {products
+                    .filter(p => adminProductSearch === '' || p.name.toLowerCase().includes(adminProductSearch.toLowerCase()))
+                    .map(product => (
                     <button 
                       key={product.id}
-                      onClick={() => setAdminSelectedProduct(product)}
+                      onClick={() => { setAdminSelectedProduct(product); setAdminProductSearch(''); }}
                       className="w-full flex items-center gap-4 p-4 bg-dark-surface rounded-2xl border border-dark-border hover:border-primary/50 transition-all text-left"
                     >
                       <img src={product.image || PLACEHOLDER_IMAGE} alt={product.name} className="w-12 h-12 rounded-lg object-cover" referrerPolicy="no-referrer" />
@@ -1460,7 +1428,7 @@ export default function App() {
               <div className="flex items-center gap-4">
                 <button 
                   onClick={() => {
-                    if (adminSelectedProduct) setAdminSelectedProduct(null);
+                    if (adminSelectedProduct) { setAdminSelectedProduct(null); setAdminProductSearch(''); }
                     else setCurrentScreen('admin-panel');
                   }} 
                   className="p-2 text-slate-400"
@@ -1474,10 +1442,23 @@ export default function App() {
 
               {!adminSelectedProduct ? (
                 <div className="space-y-3">
-                  {products.map(product => (
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Buscar produto pelo nome..."
+                      value={adminProductSearch}
+                      onChange={(e) => setAdminProductSearch(e.target.value)}
+                      className="w-full bg-dark-surface border border-dark-border rounded-xl py-3 pl-12 pr-4 text-white focus:ring-2 focus:ring-primary outline-none transition-all"
+                      autoFocus
+                    />
+                  </div>
+                  {products
+                    .filter(p => adminProductSearch === '' || p.name.toLowerCase().includes(adminProductSearch.toLowerCase()))
+                    .map(product => (
                     <button 
                       key={product.id}
-                      onClick={() => setAdminSelectedProduct(product)}
+                      onClick={() => { setAdminSelectedProduct(product); setAdminProductSearch(''); }}
                       className="w-full flex items-center gap-4 p-4 bg-dark-surface rounded-2xl border border-dark-border hover:border-primary/50 transition-all text-left"
                     >
                       <img src={product.image || PLACEHOLDER_IMAGE} alt={product.name} className="w-12 h-12 rounded-lg object-cover" referrerPolicy="no-referrer" />
@@ -1532,7 +1513,7 @@ export default function App() {
               <div className="flex items-center gap-4">
                 <button 
                   onClick={() => {
-                    if (adminSelectedProduct) setAdminSelectedProduct(null);
+                    if (adminSelectedProduct) { setAdminSelectedProduct(null); setAdminProductSearch(''); }
                     else setCurrentScreen('admin-panel');
                   }} 
                   className="p-2 text-slate-400"
@@ -1546,10 +1527,23 @@ export default function App() {
 
               {!adminSelectedProduct ? (
                 <div className="space-y-3">
-                  {products.map(product => (
+                  <div className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={18} />
+                    <input
+                      type="text"
+                      placeholder="Buscar produto pelo nome..."
+                      value={adminProductSearch}
+                      onChange={(e) => setAdminProductSearch(e.target.value)}
+                      className="w-full bg-dark-surface border border-dark-border rounded-xl py-3 pl-12 pr-4 text-white focus:ring-2 focus:ring-primary outline-none transition-all"
+                      autoFocus
+                    />
+                  </div>
+                  {products
+                    .filter(p => adminProductSearch === '' || p.name.toLowerCase().includes(adminProductSearch.toLowerCase()))
+                    .map(product => (
                     <button 
                       key={product.id}
-                      onClick={() => setAdminSelectedProduct(product)}
+                      onClick={() => { setAdminSelectedProduct(product); setAdminProductSearch(''); }}
                       className="w-full flex items-center gap-4 p-4 bg-dark-surface rounded-2xl border border-dark-border hover:border-primary/50 transition-all text-left"
                     >
                       <img src={product.image || PLACEHOLDER_IMAGE} alt={product.name} className="w-12 h-12 rounded-lg object-cover" referrerPolicy="no-referrer" />
