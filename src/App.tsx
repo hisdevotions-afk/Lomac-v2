@@ -637,8 +637,8 @@ export default function App() {
   };
 
   const handleWhatsAppOrder = () => {
-    const productNames = cart.map(item => `${item.quantity}x ${item.product.name}`).join(', ');
-    const message = `Olá! Gostaria de fazer o pedido do produto ${productNames}. Obrigado`;
+    const productLines = cart.map(item => `- ${item.quantity} ${item.product.name}`).join('\n');
+    const message = `Olá! Gostaria de finalizar um pedido que fiz pelo app.\n${productLines}\nObrigado, aguardo seu retorno.`;
     const encodedMessage = encodeURIComponent(message);
     window.open(`https://wa.me/551159316801?text=${encodedMessage}`, '_blank');
   };
